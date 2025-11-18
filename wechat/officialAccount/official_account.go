@@ -3,7 +3,10 @@ package officialAccount
 import (
 	"fmt"
 
+	"github.com/ArtisanCloud/PowerLibs/v3/cache"
 	"github.com/ArtisanCloud/PowerWeChat/v3/src/officialAccount"
+	"github.com/redis/go-redis/v9"
+	"github.com/zjutjh/mygo/nedis"
 )
 
 /*
@@ -14,8 +17,18 @@ import (
 
 */
 
-// New 直接返回 PowerWeChat 的 OfficialAccount 客户端实例
 func New(conf Config) (*officialAccount.OfficialAccount, error) {
+	var kernelCache cache.CacheInterface
+	switch conf.Driver {
+	case DriverRedis:
+		gr := cache.NewGRedis(&redis.UniversalOptions{})
+		gr.Pool = nedis.Pick(conf.Redis)
+		kernelCache = gr
+	case DriverMemory:
+		kernelCache = cache.NewMemCache(conf.MemCache.Namespace, conf.MemCache.DefaultExpire, conf.MemCache.Prefix)
+	default:
+		kernelCache = cache.NewMemCache(conf.MemCache.Namespace, conf.MemCache.DefaultExpire, conf.MemCache.Prefix)
+	}
 
 	pwConf := &officialAccount.UserConfig{
 		AppID:     conf.AppID,
@@ -30,6 +43,7 @@ func New(conf Config) (*officialAccount.OfficialAccount, error) {
 			Error:  conf.Log.Error,
 			Stdout: conf.Log.Stdout,
 		},
+		Cache: kernelCache,
 	}
 
 	app, err := officialAccount.NewOfficialAccount(pwConf)
